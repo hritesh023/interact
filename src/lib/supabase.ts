@@ -3,6 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+console.log("Debugging Supabase environment variables:");
+console.log("VITE_SUPABASE_URL:", supabaseUrl ? "Set" : "Not Set");
+console.log("VITE_SUPABASE_ANON_KEY:", supabaseAnonKey ? "Set" : "Not Set");
+console.log("Full import.meta.env:", import.meta.env);
+
+
 if (!supabaseUrl) {
   throw new Error("VITE_SUPABASE_URL is not set in environment variables. Please create a .env file in your project root with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
 }
