@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ThemeToggle } from './ThemeToggle'; // Import ThemeToggle
 
 const navItems = [
   { name: 'Home', icon: Home, path: '/' },
@@ -71,6 +72,9 @@ const Navbar = () => {
               </Button>
             </div>
           )}
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* User Avatar */}
           <Avatar className="h-8 w-8">

@@ -14,11 +14,9 @@ import ThoughtsPage from "./pages/ThoughtsPage";
 import ProfilePage from "./pages/ProfilePage";
 import Navbar from "./components/Navbar";
 import NotFound from "./pages/NotFound";
+import { supabase } from "./lib/supabase"; // Import supabase client
 
 const queryClient = new QueryClient();
-
-// This would typically come from an authentication context
-const isAuthenticated = false; // For now, we'll assume not authenticated to show AuthPage first
 
 const AppLayout = () => (
   <div className="flex flex-col min-h-screen">
@@ -31,12 +29,25 @@ const AppLayout = () => (
 
 const App = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<any>(null); // State to hold Supabase session
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000); // Show loading screen for 2 seconds
-    return () => clearTimeout(timer);
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false); // Stop loading after checking session
+    });
+
+    // Listen for auth state changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setIsLoading(false); // Stop loading after auth state change
+    });
+
+    // Cleanup listener
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   if (isLoading) {
@@ -50,10 +61,10 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/auth" element={session ? <Navigate to="/" replace /> : <AuthPage />} />
             <Route
               path="/"
-              element={isAuthenticated ? <AppLayout /> : <Navigate to="/auth" replace />}
+              element={session ? <AppLayout /> : <Navigate to="/auth" replace />}
             >
               <Route index element={<HomePage />} />
               <Route path="discover" element={<DiscoverPage />} />

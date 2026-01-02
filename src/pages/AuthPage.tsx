@@ -5,12 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Chrome } from 'lucide-react'; // Changed from Google to Chrome
+import { Chrome } from 'lucide-react';
+import { supabase } from '@/lib/supabase'; // Import supabase client
 
 const AuthPage = () => {
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     console.log("Google Sign-In clicked");
-    // Integrate with Google Sign-In here
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin, // Redirects back to the app's root
+      },
+    });
+
+    if (error) {
+      console.error("Error signing in with Google:", error);
+      // You might want to show a toast notification here
+    } else {
+      console.log("Redirecting for Google Sign-In...", data);
+    }
   };
 
   const handleEmailSignIn = (e: React.FormEvent) => {
