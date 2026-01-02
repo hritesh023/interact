@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Google } from 'lucide-react'; // Using a generic Google icon for now
+import { Chrome } from 'lucide-react'; // Changed from Google to Chrome
 
 const AuthPage = () => {
   const handleGoogleSignIn = () => {
@@ -29,7 +29,7 @@ const AuthPage = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <Button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-2">
-            <Google className="h-5 w-5" /> Sign in with Google
+            <Chrome className="h-5 w-5" /> Sign in with Google
           </Button>
           <div className="relative flex items-center">
             <div className="flex-grow border-t border-gray-300 dark:border-gray-700"></div>
