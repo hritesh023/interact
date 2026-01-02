@@ -5,31 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Chrome } from 'lucide-react';
-import { supabase } from '@/lib/supabase'; // Import supabase client
+// Removed Chrome icon import as Google Sign-In is being removed
+// import { Chrome } from 'lucide-react'; 
+// Removed supabase import as it was only used for Google Sign-In here
+// import { supabase } from '@/lib/supabase'; 
 
 const AuthPage = () => {
-  const handleGoogleSignIn = async () => {
-    console.log("Google Sign-In clicked");
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin, // Redirects back to the app's root
-      },
-    });
-
-    if (error) {
-      console.error("Error signing in with Google:", error);
-      // You might want to show a toast notification here
-    } else {
-      console.log("Redirecting for Google Sign-In...", data);
-    }
-  };
+  // Removed handleGoogleSignIn function
 
   const handleEmailSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Email Sign-In clicked");
     // Integrate with email/password sign-in here
+    // For now, this is a placeholder. You would add your Supabase email/password auth logic here.
   };
 
   return (
@@ -41,14 +29,8 @@ const AuthPage = () => {
           <CardDescription>Sign in or create an account to continue</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-2">
-            <Chrome className="h-5 w-5" /> Sign in with Google
-          </Button>
-          <div className="relative flex items-center">
-            <div className="flex-grow border-t border-gray-300 dark:border-gray-700"></div>
-            <span className="flex-shrink mx-4 text-gray-500 dark:text-gray-400">OR</span>
-            <div className="flex-grow border-t border-gray-300 dark:border-gray-700"></div>
-          </div>
+          {/* Removed Google Sign-In Button */}
+          {/* Removed "OR" divider */}
           <form onSubmit={handleEmailSignIn} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
