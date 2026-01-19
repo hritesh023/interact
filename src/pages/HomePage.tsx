@@ -1,23 +1,54 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ThumbsUp, MessageCircle, Share2, Plus } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, Plus, Play, MoreHorizontal, Bookmark, X, Sparkles, Users } from 'lucide-react';
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import ChatSidebar from '@/components/ChatSidebar';
+import StoryViewer from '@/components/StoryViewer';
+import Moments from '@/components/Moments';
+import FullscreenViewer from '@/components/FullscreenViewer';
+import CommentSection from '@/components/CommentSection';
+import { showSuccess, showError } from '@/utils/toast';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { useNavigate } from 'react-router-dom';
+import ForYouFeed from '@/components/ForYouFeed';
+import FollowingFeed from '@/components/FollowingFeed';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ReportModal from '@/components/ReportModal';
+import { fetchPosts, fetchMoments, fetchStories } from '@/lib/data';
+import { supabase } from '@/lib/supabase';
+import { FullscreenContent, Post } from '@/types';
 
 const HomePage = () => {
-  // Placeholder for stories (Facebook style but unique)
-  const stories = [
-    { id: '1', user: 'Alice', avatar: 'https://github.com/shadcn.png', image: 'https://via.placeholder.com/150/FF5733/FFFFFF?text=Story1' },
-    { id: '2', user: 'Bob', avatar: 'https://github.com/shadcn.png', image: 'https://via.placeholder.com/150/33FF57/FFFFFF?text=Story2' },
-    { id: '3', user: 'Charlie', avatar: 'https://github.com/shadcn.png', image: 'https://via.placeholder.com/150/3357FF/FFFFFF?text=Story3' },
-    { id: '4', user: 'Diana', avatar: 'https://github.com/shadcn.png', image: 'https://via.placeholder.com/150/FFFF33/000000?text=Story4' },
-    { id: '5', user: 'Eve', avatar: 'https://github.com/shadcn.png', image: 'https://via.placeholder.com/150/FF33FF/FFFFFF?text=Story5' },
-  ];
+  const navigate = useNavigate();
+  const [showStoryViewer, setShowStoryViewer] = useState(false);
+  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
+  const [savedStories, setSavedStories] = useState<Set<string>>(new Set());
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [commentedPosts, setCommentedPosts] = useState<Set<string>>(new Set());
+  const [sharedPosts, setSharedPosts] = useState<Set<string>>(new Set());
+  const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
+  const [fullscreenContent, setFullscreenContent] = useState<FullscreenContent | null>(null);
+  const [fullscreenType, setFullscreenType] = useState<'post' | 'live' | 'video' | 'moment' | 'image' | 'thought' | 'reacted' | 'story'>('moment');
+  const [likedMoments, setLikedMoments] = useState<Set<string>>(new Set());
+  const [commentSectionOpen, setCommentSectionOpen] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [selectedPostUser, setSelectedPostUser] = useState<string>('');
+  const [followedCreators, setFollowedCreators] = useState<Set<string>>(new Set());
+  const [userHasStories, setUserHasStories] = useState(false);
+  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+  const [followingAccounts, setFollowingAccounts] = useState<string[]>(['Interact Official', 'Emma Thompson', 'Tech Enthusiast']);
+  const [reportModalOpen, setReportModalOpen] = useState<string | null>(null);
+  
+  // Real posts data from Supabase with bot content fallback
+  const [enhancedPosts, setEnhancedPosts] = useState<Post[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
-  // Placeholder for posts
-  const posts = [
+  // Bot content fallback for when there are no real posts
+  const botPosts: Post[] = [
     {
       id: 'p1',
       user: 'Interact Official',
@@ -26,8 +57,12 @@ const HomePage = () => {
       content: 'Welcome to Interact! We are excited to build this community with you. Share your first thought!',
       image: null,
       likes: 120,
+      reacts: 15,
       comments: 15,
       shares: 5,
+      type: 'post' as const,
+      tags: ['community', 'welcome', 'social'],
+      categories: ['announcement']
     },
     {
       id: 'p2',
@@ -35,73 +70,737 @@ const HomePage = () => {
       avatar: 'https://github.com/shadcn.png',
       time: '5 hours ago',
       content: 'Just posted a new moment! Check it out on my profile.',
-      image: 'https://via.placeholder.com/600x400/8A2BE2/FFFFFF?text=My+Moment',
+      image: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&fit=crop',
       likes: 85,
+      reacts: 8,
       comments: 8,
       shares: 2,
+      type: 'post' as const,
+      tags: ['moment', 'profile', 'update'],
+      categories: ['personal']
+    },
+    {
+      id: 'p3',
+      user: 'Tech Enthusiast',
+      avatar: 'https://github.com/shadcn.png',
+      time: '1 hour ago',
+      content: 'The future of AI is here! What are your thoughts on the latest developments?',
+      image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&fit=crop',
+      likes: 245,
+      reacts: 32,
+      comments: 67,
+      shares: 23,
+      type: 'thought' as const,
+      tags: ['AI', 'technology', 'future'],
+      categories: ['tech']
+    },
+    {
+      id: 'p4',
+      user: 'Emma Thompson',
+      avatar: 'https://github.com/shadcn.png',
+      time: '3 hours ago',
+      content: 'Beautiful sunset at the beach today. Nature never fails to amaze! 🌅',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&fit=crop',
+      likes: 189,
+      reacts: 21,
+      comments: 34,
+      shares: 12,
+      type: 'post' as const,
+      tags: ['nature', 'sunset', 'beach'],
+      categories: ['lifestyle']
+    }
+  ];
+
+  // Fetch posts from Supabase, fallback to bot content if no real data
+  useEffect(() => {
+    const loadPosts = async () => {
+      try {
+        setIsLoadingPosts(true);
+        const { data: { user } } = await supabase?.auth.getUser() || { data: { user: null } };
+        const posts = await fetchPosts(user?.id);
+        
+        // If no real posts exist, show bot content
+        if (posts.length === 0) {
+          setEnhancedPosts(botPosts);
+        } else {
+          setEnhancedPosts(posts);
+        }
+      } catch (error) {
+        console.error('Error loading posts:', error);
+        // Fallback to bot content on error
+        setEnhancedPosts(botPosts);
+      } finally {
+        setIsLoadingPosts(false);
+      }
+    };
+
+    loadPosts();
+  }, []);
+
+  // Check if user has uploaded stories (simulated for demo)
+  useEffect(() => {
+    // In a real app, this would check against a database or context
+    // For demo purposes, we'll simulate that the user has no stories initially
+    // You can change this to true to test the behavior when user has stories
+    const checkUserStories = () => {
+      // Check localStorage or context for user stories
+      const userStories = localStorage.getItem('userUploadedStories');
+      setUserHasStories(!!userStories && JSON.parse(userStories).length > 0);
+    };
+
+    checkUserStories();
+    
+    // Listen for story uploads from other components
+    const handleStoryUpload = (event: CustomEvent) => {
+      setUserHasStories(true);
+      // Store in localStorage for persistence
+      localStorage.setItem('userUploadedStories', JSON.stringify(event.detail));
+    };
+
+    window.addEventListener('storyUploaded', handleStoryUpload as EventListener);
+    
+    return () => {
+      window.removeEventListener('storyUploaded', handleStoryUpload as EventListener);
+    };
+  }, []);
+
+  // Handle reopening fullscreen from minimized state
+  useEffect(() => {
+    const handleReopenFullscreen = (event: CustomEvent) => {
+      const { content, currentTime, isPaused, isFromMinimized } = event.detail;
+      
+      // Restore the content and state
+      setFullscreenContent(content);
+      setFullscreenType(content.type || 'moment');
+      
+      // Restore video state after a short delay to ensure video element is ready
+      if (isFromMinimized && (currentTime !== undefined || isPaused !== undefined)) {
+        setTimeout(() => {
+          const video = document.querySelector('video') as HTMLVideoElement;
+          if (video) {
+            if (currentTime !== undefined) {
+              video.currentTime = currentTime;
+            }
+            if (isPaused === false) {
+              video.play().catch(e => console.log('Auto-play prevented:', e));
+            }
+          }
+        }, 500);
+      }
+    };
+
+    // Handle split view video selection
+    const handleSplitViewVideoSelected = (event: CustomEvent) => {
+      const { content } = event.detail;
+      
+      // Set the new content immediately
+      setFullscreenContent(content);
+      setFullscreenType(content.type || 'video');
+      
+      // Clear temp content to avoid duplicate processing
+      (window as { tempFullscreenContent?: FullscreenContent }).tempFullscreenContent = null;
+    };
+
+    window.addEventListener('reopenFullscreen', handleReopenFullscreen as EventListener);
+    window.addEventListener('splitViewVideoSelected', handleSplitViewVideoSelected as EventListener);
+    
+    return () => {
+      window.removeEventListener('reopenFullscreen', handleReopenFullscreen as EventListener);
+      window.removeEventListener('splitViewVideoSelected', handleSplitViewVideoSelected as EventListener);
+    };
+  }, []);
+
+  // Check for temp content when fullscreen viewer closes
+  useEffect(() => {
+    const windowWithTemp = window as { tempFullscreenContent?: FullscreenContent };
+    if (!fullscreenContent && windowWithTemp.tempFullscreenContent) {
+      const tempContent = windowWithTemp.tempFullscreenContent!;
+      windowWithTemp.tempFullscreenContent = null;
+      setFullscreenContent(tempContent);
+      setFullscreenType(tempContent.type || 'video');
+    }
+  }, [fullscreenContent]);
+  
+  // Real stories data from Supabase with bot content fallback
+  const [stories, setStories] = useState<any[]>([]);
+  const [isLoadingStories, setIsLoadingStories] = useState(true);
+
+  // Bot stories fallback for when there are no real stories
+  const botStories = [
+    { id: '1', user: 'Alice', avatar: 'https://github.com/shadcn.png', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&h=500&fit=crop', time: '2 hours ago' },
+    { id: '2', user: 'Bob', avatar: 'https://github.com/shadcn.png', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=500&fit=crop', time: '4 hours ago' },
+    { id: '3', user: 'Charlie', avatar: 'https://github.com/shadcn.png', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&h=500&fit=crop', time: '6 hours ago' },
+    { id: '4', user: 'Diana', avatar: 'https://github.com/shadcn.png', image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300&h=500&fit=crop', time: '8 hours ago' },
+    { id: '5', user: 'Eve', avatar: 'https://github.com/shadcn.png', image: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=500&fit=crop', time: '12 hours ago' },
+  ];
+
+  // Fetch stories from Supabase, fallback to bot content if no real data
+  useEffect(() => {
+    const loadStories = async () => {
+      try {
+        setIsLoadingStories(true);
+        const storiesData = await fetchStories();
+        
+        // If no real stories exist, show bot content
+        if (storiesData.length === 0) {
+          setStories(botStories);
+        } else {
+          setStories(storiesData);
+        }
+      } catch (error) {
+        console.error('Error loading stories:', error);
+        // Fallback to bot content on error
+        setStories(botStories);
+      } finally {
+        setIsLoadingStories(false);
+      }
+    };
+
+    loadStories();
+  }, []);
+
+  // Real moments data from Supabase with bot content fallback
+  const [moments, setMoments] = useState<any[]>([]);
+  const [isLoadingMoments, setIsLoadingMoments] = useState(true);
+
+  // Bot moments fallback for when there are no real moments
+  const botMoments = [
+    { 
+      id: 'm1', 
+      user: 'alex_adventures', 
+      content: 'The view from the top is absolutely breathtaking! 🏔️ #hiking #nature #sunset',
+      media: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=700&fit=crop&auto=format&dpr=2',
+      mediaType: 'video' as const,
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      likes: 15400,
+      comments: 892,
+      views: 23000,
+      time: '2 hours ago'
+    },
+    { 
+      id: 'm2', 
+      user: 'culinary_wizard', 
+      content: 'Secret pasta recipe revealed! 🍝 You have to try this. #cooking #foodie #recipe',
+      media: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      thumbnail: 'https://images.unsplash.com/photo-1563379091339-03246963d278?w=400&h=700&fit=crop&auto=format&dpr=2',
+      mediaType: 'video' as const,
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      likes: 8900,
+      comments: 567,
+      views: 12000,
+      time: '4 hours ago'
+    },
+    { 
+      id: 'm3', 
+      user: 'fitness_pro', 
+      content: 'No excuses. Get it done. 💪 #fitness #gym #motivation',
+      media: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+      thumbnail: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=700&fit=crop&auto=format&dpr=2',
+      mediaType: 'video' as const,
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+      likes: 22100,
+      comments: 1200,
+      views: 45000,
+      time: '6 hours ago'
+    },
+    { 
+      id: 'm4', 
+      user: 'urban_dancer', 
+      content: 'Vibing in the city 🌃 #dance #street #vibes',
+      media: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+      thumbnail: 'https://images.unsplash.com/photo-1516373363238-71c1eee6e0c5?w=400&h=700&fit=crop&auto=format&dpr=2',
+      mediaType: 'video' as const,
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+      likes: 45600,
+      comments: 2300,
+      views: 78000,
+      time: '8 hours ago'
     },
   ];
 
-  return (
-    <div className="space-y-6">
-      {/* Story Panel */}
-      <Card className="p-4">
-        <CardTitle className="mb-4 text-lg">Stories</CardTitle>
-        <div className="flex overflow-x-auto space-x-4 pb-2 scrollbar-hide">
-          {/* Add Story Button */}
-          <div className="flex-shrink-0 w-24 h-36 flex flex-col items-center justify-center bg-muted rounded-lg cursor-pointer hover:bg-muted/80 transition-colors">
-            <Plus className="h-8 w-8 text-muted-foreground mb-2" />
-            <span className="text-sm text-muted-foreground">Add Story</span>
-          </div>
-          {stories.map((story) => (
-            <div key={story.id} className="flex-shrink-0 w-24 h-36 relative rounded-lg overflow-hidden shadow-md">
-              <img src={story.image} alt={story.user} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent p-2 flex flex-col justify-end">
-                <Avatar className="w-8 h-8 border-2 border-white mb-1">
-                  <AvatarImage src={story.avatar} />
-                  <AvatarFallback>{story.user.substring(0, 2)}</AvatarFallback>
-                </Avatar>
-                <span className="text-white text-xs font-semibold truncate">{story.user}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+  // Fetch moments from Supabase, fallback to bot content if no real data
+  useEffect(() => {
+    const loadMoments = async () => {
+      try {
+        setIsLoadingMoments(true);
+        const momentsData = await fetchMoments();
+        
+        // If no real moments exist, show bot content
+        if (momentsData.length === 0) {
+          setMoments(botMoments);
+        } else {
+          setMoments(momentsData);
+        }
+      } catch (error) {
+        console.error('Error loading moments:', error);
+        // Fallback to bot content on error
+        setMoments(botMoments);
+      } finally {
+        setIsLoadingMoments(false);
+      }
+    };
 
-      {/* Post Feed */}
-      {posts.map((post) => (
-        <Card key={post.id} className="p-4">
-          <CardHeader className="flex flex-row items-center gap-3 p-0 mb-4">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={post.avatar} />
-              <AvatarFallback>{post.user.substring(0, 2)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle className="text-base">{post.user}</CardTitle>
-              <p className="text-sm text-muted-foreground">{post.time}</p>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <p className="mb-4">{post.content}</p>
-            {post.image && (
-              <img src={post.image} alt="Post content" className="w-full rounded-lg mb-4 object-cover max-h-96" />
-            )}
-            <div className="flex items-center justify-between text-muted-foreground text-sm">
-              <div className="flex items-center gap-4">
-                <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                  <ThumbsUp className="h-4 w-4" /> {post.likes}
-                </Button>
-                <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                  <MessageCircle className="h-4 w-4" /> {post.comments}
-                </Button>
+    loadMoments();
+  }, []);
+
+  // Story handlers
+  const handleStoryClick = (index: number) => {
+    setCurrentStoryIndex(index);
+    setShowStoryViewer(true);
+  };
+
+  const handleNextStory = () => {
+    if (currentStoryIndex < stories.length - 1) {
+      setCurrentStoryIndex(prev => prev + 1);
+    } else {
+      setShowStoryViewer(false);
+    }
+  };
+
+  const handlePreviousStory = () => {
+    if (currentStoryIndex > 0) {
+      setCurrentStoryIndex(prev => prev - 1);
+    }
+  };
+
+  const handleCloseStoryViewer = () => {
+    setShowStoryViewer(false);
+  };
+
+  const handleSaveStory = (storyId: string) => {
+    setSavedStories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(storyId)) {
+        newSet.delete(storyId);
+        showSuccess('🗑️ Story removed from saved');
+      } else {
+        newSet.add(storyId);
+        showSuccess('📌 Story saved successfully!');
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteStory = (storyId: string) => {
+    showSuccess('🗑️ Story deleted successfully.');
+  };
+
+  // Handle create story button click
+  const handleCreateStoryClick = () => {
+    if (!userHasStories) {
+      navigate('/create');
+    } else {
+      // If user already has stories, show story viewer or do nothing
+      showSuccess('You already have stories uploaded!');
+    }
+  };
+
+  // Moments handlers
+  const handleFullscreen = (content: FullscreenContent | any) => {
+    setFullscreenContent(content);
+    setFullscreenType('moment');
+  };
+
+  const handleComment = (momentId: string, user: string) => {
+    setSelectedPostId(momentId);
+    setSelectedPostUser(user);
+    setCommentSectionOpen(true);
+  };
+
+  const handleLikeMoment = (momentId: string) => {
+    setLikedMoments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(momentId)) {
+        newSet.delete(momentId);
+        showSuccess('💔 Moment unliked');
+      } else {
+        newSet.add(momentId);
+        showSuccess('❤️ Moment liked!');
+      }
+      return newSet;
+    });
+  };
+
+  const handleCloseFullscreen = () => {
+    setFullscreenContent(null);
+  };
+
+  // Post interaction handlers
+  const handleLikePost = (postId: string) => {
+    setLikedPosts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+        showSuccess('💔 Post unliked');
+      } else {
+        newSet.add(postId);
+        showSuccess('❤️ Post liked!');
+      }
+      return newSet;
+    });
+    
+    // Update the post likes count
+    setEnhancedPosts(prev => prev.map(post => 
+      post.id === postId 
+        ? { ...post, likes: likedPosts.has(postId) ? post.likes - 1 : post.likes + 1 }
+        : post
+    ));
+  };
+
+  const handleCommentPost = (postId: string, postUser?: string) => {
+    const post = enhancedPosts.find(p => p.id === postId);
+    setSelectedPostId(postId);
+    setSelectedPostUser(postUser || post?.user || 'Unknown');
+    setCommentedPosts(prev => {
+      const newSet = new Set(prev);
+      newSet.add(postId);
+      return newSet;
+    });
+    setCommentSectionOpen(true);
+  };
+
+  const handleReactPost = (postId: string) => {
+    setCommentedPosts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+        showSuccess('💔 Post unreacted');
+      } else {
+        newSet.add(postId);
+        showSuccess('🔄 Post reacted!');
+      }
+      return newSet;
+    });
+    
+    // Update the post reacts count
+    setEnhancedPosts(prev => prev.map(post => 
+      post.id === postId 
+        ? { ...post, reacts: commentedPosts.has(postId) ? post.reacts - 1 : post.reacts + 1 }
+        : post
+    ));
+  };
+
+  const handleSharePost = (post: Post) => {
+    setSharedPosts(prev => {
+      const newSet = new Set(prev);
+      newSet.add(post.id);
+      return newSet;
+    });
+    if (navigator.share) {
+      navigator.share({
+        title: 'Check out this post!',
+        text: 'Amazing content on Interact',
+        url: window.location.href
+      }).catch(() => {
+        navigator.clipboard.writeText(window.location.href);
+        showSuccess('🔗 Post link copied to clipboard!');
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      showSuccess('🔗 Post link copied to clipboard!');
+    }
+  };
+
+  const handleSavePost = (postId: string) => {
+    setSavedPosts(prev => {
+      const newSet = new Set(prev);
+      const post = enhancedPosts.find(p => p.id === postId);
+      
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+        showSuccess('🗑️ Post removed from saved');
+        
+        console.log('Dispatching contentUnsaved event for:', postId, post);
+        // Dispatch event to notify profile page
+        window.dispatchEvent(new CustomEvent('contentUnsaved', { 
+          detail: { postId, content: post } 
+        }));
+      } else {
+        newSet.add(postId);
+        showSuccess('📌 Post saved successfully!');
+        
+        // Store full content data when saving
+        if (post) {
+          const savedContentData = localStorage.getItem('savedContentData');
+          const savedContent = savedContentData ? JSON.parse(savedContentData) : {};
+          savedContent[postId] = {
+            ...post,
+            savedAt: new Date().toISOString()
+          };
+          localStorage.setItem('savedContentData', JSON.stringify(savedContent));
+        }
+        
+        console.log('Dispatching contentSaved event for:', postId, post);
+        // Dispatch event to notify profile page
+        window.dispatchEvent(new CustomEvent('contentSaved', { 
+          detail: { postId, content: post } 
+        }));
+      }
+      return newSet;
+    });
+  };
+
+  const handleFullscreenPost = (post: Post) => {
+    setFullscreenContent(post);
+    setFullscreenType('post');
+  };
+
+  const handleReportPost = (postId: string) => {
+    setReportModalOpen(postId);
+  };
+
+  const handleDeletePost = (postId: string) => {
+    setEnhancedPosts(prev => prev.filter(post => post.id !== postId));
+    showSuccess('🗑️ Post deleted successfully.');
+  };
+
+  const handleAddToHistory = (post: Post) => {
+    // Add to history functionality
+  };
+
+  const handleVote = (postId: string, voteType: 'upvote' | 'downvote') => {
+    // Handle voting functionality
+  };
+
+  const handleFollow = (creatorId: string) => {
+    setFollowedCreators(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(creatorId)) {
+        newSet.delete(creatorId);
+        showSuccess(`Unfollowed creator`);
+      } else {
+        newSet.add(creatorId);
+        showSuccess(`Following creator!`);
+      }
+      return newSet;
+    });
+  };
+
+  const handleContentChange = (content: FullscreenContent) => {
+    setFullscreenContent(content);
+    setFullscreenType(content.type || 'video');
+  };
+
+  return (
+    <div className="flex gap-6 relative">
+      {/* Main Content Feed */}
+      <div className="flex-1 space-y-8 max-w-2xl mx-auto w-full">
+
+        {/* Story Panel (Facebook Style but Unique) */}
+        <div className="relative">
+          <ScrollArea className="w-full whitespace-nowrap rounded-xl">
+            <div className="flex space-x-4 p-1">
+              {/* Add Story Button */}
+              <div 
+                className="relative w-32 h-52 flex-shrink-0 cursor-pointer group"
+                onClick={handleCreateStoryClick}
+              >
+                <div className="absolute inset-0 bg-secondary rounded-xl overflow-hidden transition-transform duration-300 group-hover:scale-[1.02]">
+                  <div className="h-2/3 bg-primary/20 flex items-center justify-center">
+                    <Avatar className="w-16 h-16 border-4 border-background">
+                      <AvatarImage src="https://github.com/shadcn.png" />
+                      <AvatarFallback>ME</AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <div className="h-1/3 bg-secondary flex flex-col items-center justify-start pt-6 relative">
+                    <div className="absolute -top-4 w-8 h-8 bg-primary rounded-full flex items-center justify-center border-4 border-secondary text-white shadow-lg">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                    <span className="font-semibold text-sm">Create Story</span>
+                  </div>
+                </div>
               </div>
-              <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                <Share2 className="h-4 w-4" /> {post.shares}
-              </Button>
+
+              {/* Stories or Loading State */}
+              {isLoadingStories ? (
+                // Loading skeleton for stories
+                Array.from({ length: 5 }).map((_, index) => (
+                  <div key={`skeleton-${index}`} className="relative w-32 h-52 flex-shrink-0">
+                    <div className="absolute inset-0 bg-gray-200 rounded-xl animate-pulse" />
+                  </div>
+                ))
+              ) : stories.length === 0 ? (
+                // Empty state for stories
+                <div className="flex items-center justify-center w-full h-52 text-muted-foreground">
+                  <p>No stories available yet</p>
+                </div>
+              ) : (
+                // Real stories
+                stories.map((story, index) => (
+                  <div 
+                    key={story.id} 
+                    className="relative w-32 h-52 flex-shrink-0 cursor-pointer group"
+                    onClick={() => handleStoryClick(index)}
+                  >
+                    <div className="absolute inset-0 rounded-xl overflow-hidden transition-transform duration-300 group-hover:scale-[1.02] shadow-sm hover:shadow-lg">
+                      <img src={story.image} alt={story.user} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                      <div className="absolute top-2 left-2 w-10 h-10 rounded-full border-2 border-primary p-0.5 z-10">
+                        <Avatar className="w-full h-full border-2 border-black">
+                          <AvatarImage src={story.avatar} />
+                          <AvatarFallback>{story.user[0]}</AvatarFallback>
+                        </Avatar>
+                      </div>
+                      <span className="absolute bottom-3 left-3 text-white font-bold text-sm tracking-wide z-10">{story.user}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          </CardContent>
-        </Card>
-      ))}
+            <ScrollBar orientation="horizontal" className="hidden" />
+          </ScrollArea>
+        </div>
+
+        {/* Moments Section (Short Videos) */}
+        {isLoadingMoments ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="ml-4 text-muted-foreground">Loading moments...</p>
+          </div>
+        ) : moments.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No moments available yet</p>
+            <p className="text-sm text-muted-foreground mt-2">Showing sample moments to inspire you! Create your own moments to see real content.</p>
+          </div>
+        ) : (
+          <Moments 
+            moments={moments}
+            onFullscreen={handleFullscreen}
+            onComment={handleComment}
+            onLike={handleLikeMoment}
+            likedMoments={likedMoments}
+            isHomePage={false}
+            isMomentsPage={true}
+          />
+        )}
+
+        {/* Main Feed with For You and Following Tabs */}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'foryou' | 'following')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="foryou" className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              For You
+            </TabsTrigger>
+            <TabsTrigger value="following" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Following
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="foryou" className="mt-0">
+            {isLoadingPosts ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="ml-4 text-muted-foreground">Loading posts...</p>
+              </div>
+            ) : enhancedPosts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No posts available yet</p>
+                <p className="text-sm text-muted-foreground mt-2">Showing sample content to inspire you! Create your first post to see real content.</p>
+              </div>
+            ) : (
+              <ForYouFeed
+                posts={enhancedPosts}
+                userInterests={['technology', 'nature', 'lifestyle', 'AI']}
+                userCategories={['tech', 'lifestyle']}
+                onLike={handleLikePost}
+                onReact={handleReactPost}
+                onComment={handleCommentPost}
+                onShare={handleSharePost}
+                onFullscreen={handleFullscreenPost}
+                onReport={handleReportPost}
+                onDelete={handleDeletePost}
+                onAddToHistory={handleAddToHistory}
+                onVote={handleVote}
+                likedPosts={likedPosts}
+                reactedPosts={commentedPosts}
+                postLikes={Object.fromEntries(enhancedPosts.map(p => [p.id, p.likes]))}
+                postReacts={Object.fromEntries(enhancedPosts.map(p => [p.id, p.reacts]))}
+                postCommentCounts={Object.fromEntries(enhancedPosts.map(p => [p.id, p.comments]))}
+              />
+            )}
+          </TabsContent>
+          
+          <TabsContent value="following" className="mt-0">
+            {isLoadingPosts ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="ml-4 text-muted-foreground">Loading posts...</p>
+              </div>
+            ) : enhancedPosts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No posts from people you follow</p>
+                <p className="text-sm text-muted-foreground mt-2">Showing sample content for now! Start following people to see their posts here.</p>
+              </div>
+            ) : (
+              <FollowingFeed
+                posts={enhancedPosts}
+                followingAccounts={followingAccounts}
+                onLike={handleLikePost}
+                onReact={handleReactPost}
+                onComment={handleCommentPost}
+                onShare={handleSharePost}
+                onFullscreen={handleFullscreenPost}
+                onReport={handleReportPost}
+                onDelete={handleDeletePost}
+                onAddToHistory={handleAddToHistory}
+                onVote={handleVote}
+                likedPosts={likedPosts}
+                reactedPosts={commentedPosts}
+                postLikes={Object.fromEntries(enhancedPosts.map(p => [p.id, p.likes]))}
+                postReacts={Object.fromEntries(enhancedPosts.map(p => [p.id, p.reacts]))}
+                postCommentCounts={Object.fromEntries(enhancedPosts.map(p => [p.id, p.comments]))}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Chat Sidebar (Desktop Only) */}
+      <div className="hidden xl:block w-80 relative">
+        <ChatSidebar />
+      </div>
+
+      {/* Story Viewer */}
+      {showStoryViewer && (
+        <StoryViewer
+          stories={stories}
+          currentIndex={currentStoryIndex}
+          onClose={handleCloseStoryViewer}
+          onNext={handleNextStory}
+          onPrevious={handlePreviousStory}
+          onDeleteStory={handleDeleteStory}
+        />
+      )}
+
+      {/* Fullscreen Viewer */}
+      {fullscreenContent && (
+        <FullscreenViewer
+          content={fullscreenContent}
+          type={fullscreenType}
+          onClose={handleCloseFullscreen}
+          onFollow={handleFollow}
+          followedCreators={followedCreators}
+          onContentChange={handleContentChange}
+        />
+      )}
+
+      {/* Comment Section */}
+      <CommentSection
+        isOpen={commentSectionOpen}
+        onClose={() => setCommentSectionOpen(false)}
+        postId={selectedPostId || ''}
+        postUser={selectedPostUser}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={reportModalOpen !== null}
+        onClose={() => setReportModalOpen(null)}
+        contentId={reportModalOpen || ''}
+        contentType="post"
+      />
     </div>
   );
 };

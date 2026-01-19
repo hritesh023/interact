@@ -3,18 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log("Debugging Supabase environment variables:");
-console.log("VITE_SUPABASE_URL:", supabaseUrl ? "Set" : "Not Set");
-console.log("VITE_SUPABASE_ANON_KEY:", supabaseAnonKey ? "Set" : "Not Set");
-console.log("Full import.meta.env:", import.meta.env);
+console.log("Supabase URL:", supabaseUrl);
+console.log("Supabase Key present:", !!supabaseAnonKey);
 
-
-if (!supabaseUrl) {
-  throw new Error("VITE_SUPABASE_URL is not set in environment variables. Please create a .env file in your project root with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Supabase credentials not found in environment variables');
+  console.error('Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file');
+  console.error('Interact cannot function without Supabase configuration');
 }
 
-if (!supabaseAnonKey) {
-  throw new Error("VITE_SUPABASE_ANON_KEY is not set in environment variables. Please create a .env file in your project root with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create real Supabase client or null if credentials are missing
+export const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
+  : null;
