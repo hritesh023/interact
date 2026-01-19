@@ -83,7 +83,7 @@ A modern, cross-platform social media application built with React, TypeScript, 
 ### Local Development
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/hritesh023/interact.git
 cd interact
 
 # Install dependencies
@@ -152,8 +152,7 @@ pnpm build
 ## 📊 Performance Metrics
 
 ### Bundle Size
-- **Total**: ~790KB (0.77MB)
-- **Gzipped**: ~95KB
+- **Total**: ~255KB (67KB gzipped)
 - **Chunks**: Well-split for optimal loading
 
 ### Performance Features
@@ -249,7 +248,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🆘 Support
 
 For issues and questions:
-- Check the [Issues](../../issues) page
+- Check the [Issues](https://github.com/hritesh023/interact/issues) page
 - Review the documentation
 - Contact the development team
 
